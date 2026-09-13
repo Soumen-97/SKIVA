@@ -43,6 +43,12 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
+  /* Prevent Chrome/Android's automatic "font boosting" of text inside
+     narrow columns (like the sidebar) from inflating font sizes past
+     what's actually set below. Without this, text in the sidebar can
+     render much larger than its declared font-size and wrap oddly,
+     even though the CSS value itself is correct. */
+  html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   body{
     background:
       radial-gradient(circle at 15% 8%, rgba(176,138,78,0.05), transparent 45%),
@@ -67,6 +73,8 @@
      margin-left (kept in sync at every breakpoint below) so its
      content never sits underneath the sidebar. */
   #sidebar{
+    -webkit-text-size-adjust:100%;
+    text-size-adjust:100%;
     width:238px;
     position:fixed;
     top:0;
@@ -145,7 +153,7 @@
   }
   .avatar.lg{ width:46px; height:46px; font-size:15px; }
   .tab-row{ display:flex; align-items:center; gap:10px; }
-  .patient-tab .pname{ font-size:13.5px; font-weight:500; }
+  .patient-tab .pname{ font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .patient-tab .pmeta{ font-size:10.5px; color:var(--ink-soft); }
   .patient-tab .flagcount{
     font-family:'IBM Plex Mono', monospace;
