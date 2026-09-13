@@ -1,13 +1,13 @@
 // Bump this version string whenever you update index.html (or any cached file)
 // so returning visitors get the fresh version instead of a stale cached copy.
-const CACHE_NAME = 'skiva-cache-v1';
+const CACHE_NAME = 'skiva-cache-v3';
 
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './icon-192.png',
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
