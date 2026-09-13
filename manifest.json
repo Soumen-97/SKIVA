@@ -1,0 +1,25 @@
+{
+  "name": "SKIVA — Your health, organized over time.",
+  "short_name": "SKIVA",
+  "description": "Your health, organized over time. Track lab reports for you and your family, side by side, with trends and out-of-range flags.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F2F0E9",
+  "theme_color": "#211F1A",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
