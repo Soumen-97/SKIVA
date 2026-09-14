@@ -1,6 +1,6 @@
 // Bump this version string whenever you update index.html (or any cached file)
 // so returning visitors get the fresh version instead of a stale cached copy.
-const CACHE_NAME = 'skiva-cache-v9';
+const CACHE_NAME = 'skiva-cache-v10';
 
 const CORE_ASSETS = [
   './',
