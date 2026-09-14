@@ -547,8 +547,8 @@
 <!-- Add / Edit Patient modal -->
 <div class="modal-backdrop" id="modal-patient">
   <div class="modal">
-    <h3>New patient</h3>
-    <div class="modal-desc">Add someone to start tracking their reports.</div>
+    <h3 id="np-modal-title">New patient</h3>
+    <div class="modal-desc" id="np-modal-desc">Add someone to start tracking their reports.</div>
     <div class="field-row">
       <div class="field"><label>Full name</label><input type="text" id="np-name" placeholder="e.g. Soumen Kundu"></div>
       <div class="field" style="max-width:120px"><label>Sex</label>
@@ -921,6 +921,7 @@ function renderMain(){
       </div>
       <div class="topbar-actions">
         <button class="btn subtle small" onclick="STATE.selectedPatient=null; renderAll();">← ${STATE.selectedGroup ? escapeHtml(STATE.selectedGroup) : 'All patients'}</button>
+        <button class="btn subtle small" onclick="openEditPatientModal('${p.id}')">Edit</button>
         <button class="btn small" onclick="openReportModal('${p.id}')">+ Add report</button>
         <button class="btn danger small" onclick="deletePatient('${p.id}')">Delete patient</button>
       </div>
@@ -1138,32 +1139,56 @@ function tryTrend(patientId, cat, name){
 }
 function closeTrend(){ document.getElementById('trend-panel').classList.remove('show'); }
 
-/* ======================= Add Patient modal ======================= */
-function openPatientModal(presetGroup){
-  document.getElementById('np-name').value='';
-  document.getElementById('np-sex').value='Male';
-  document.getElementById('np-age').value='';
-  document.getElementById('np-ref').value='';
+/* ======================= Add / Edit Patient modal ======================= */
+let editingPatientId = null; // null = "add new patient" mode; a patient id = "editing" mode
 
+function populateGroupSelect(currentGroup){
   // Rebuild the group dropdown: the three defaults, plus any custom
   // group names already used by existing patients, then "+ New group…".
   const defaults = ['Family','Friends','Office'];
   const used = Array.from(new Set(STATE.patients.map(p=>p.group).filter(g=>g && !defaults.includes(g))));
   const groupSel = document.getElementById('np-group');
   const allKnown = [...defaults, ...used];
-  // If we're pre-filling a group that currently has no patients (e.g. the
-  // last member of a group was just deleted), make sure it's still an option.
-  if (presetGroup && !allKnown.includes(presetGroup)) allKnown.push(presetGroup);
+  // Make sure the group we're pre-filling/editing-into is always an option,
+  // even if no patient currently has it (e.g. a group whose last member was
+  // just deleted, or a patient being edited out of its only member group).
+  if (currentGroup && !allKnown.includes(currentGroup)) allKnown.push(currentGroup);
   groupSel.innerHTML =
     allKnown.map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('') +
     `<option value="__custom__">+ New group…</option>`;
-  groupSel.value = presetGroup || 'Family';
+  groupSel.value = currentGroup || 'Family';
   document.getElementById('np-group-name').value='';
   document.getElementById('np-group-custom').style.display='none';
+}
 
+function openPatientModal(presetGroup){
+  editingPatientId = null;
+  document.getElementById('np-modal-title').textContent = 'New patient';
+  document.getElementById('np-modal-desc').textContent = 'Add someone to start tracking their reports.';
+  document.getElementById('btn-save-patient').textContent = 'Save patient';
+  document.getElementById('np-name').value='';
+  document.getElementById('np-sex').value='Male';
+  document.getElementById('np-age').value='';
+  document.getElementById('np-ref').value='';
+  populateGroupSelect(presetGroup);
   openModal('modal-patient');
 }
 document.getElementById('btn-add-patient').onclick = ()=>openPatientModal(STATE.selectedGroup && STATE.selectedGroup!==UNGROUPED ? STATE.selectedGroup : undefined);
+
+function openEditPatientModal(patientId){
+  const p = STATE.patients.find(x=>x.id===patientId);
+  if (!p) return;
+  editingPatientId = patientId;
+  document.getElementById('np-modal-title').textContent = 'Edit patient';
+  document.getElementById('np-modal-desc').textContent = `Update ${escapeHtml(p.name)}'s details.`;
+  document.getElementById('btn-save-patient').textContent = 'Save changes';
+  document.getElementById('np-name').value = p.name || '';
+  document.getElementById('np-sex').value = p.sex || 'Male';
+  document.getElementById('np-age').value = p.age || '';
+  document.getElementById('np-ref').value = p.refBy || '';
+  populateGroupSelect(p.group || null);
+  openModal('modal-patient');
+}
 
 document.getElementById('btn-save-patient').onclick = async ()=>{
   const name = document.getElementById('np-name').value.trim();
@@ -1173,12 +1198,24 @@ document.getElementById('btn-save-patient').onclick = async ()=>{
   if (groupSelVal === '__custom__'){
     group = document.getElementById('np-group-name').value.trim() || 'Family';
   }
+  const sex = document.getElementById('np-sex').value;
+  const age = parseInt(document.getElementById('np-age').value)||null;
+  const refBy = document.getElementById('np-ref').value.trim();
+
+  if (editingPatientId){
+    const p = STATE.patients.find(x=>x.id===editingPatientId);
+    if (!p){ closeModal('modal-patient'); return; }
+    p.name = name; p.sex = sex; p.age = age; p.refBy = refBy; p.group = group;
+    await persist();
+    closeModal('modal-patient');
+    editingPatientId = null;
+    renderAll();
+    return p;
+  }
+
   const p = {
     id: uid('pt'),
-    name,
-    sex: document.getElementById('np-sex').value,
-    age: parseInt(document.getElementById('np-age').value)||null,
-    refBy: document.getElementById('np-ref').value.trim(),
+    name, sex, age, refBy,
     color: pickUniqueColor(STATE.patients.map(x=>x.color).filter(Boolean)),
     group,
   };
