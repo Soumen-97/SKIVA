@@ -123,6 +123,16 @@
     color:var(--ink-soft);
     padding:14px 18px 6px;
   }
+  .group-label{
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:0.4px;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    padding:12px 18px 4px;
+    opacity:0.8;
+  }
+  .group-label:first-child{ padding-top:2px; }
   .patient-list{ flex:1; overflow-y:auto; }
   .patient-tab{
     display:flex;
@@ -450,6 +460,7 @@
     .brand-mark{ font-size:18px; }
     .brand-sub{ font-size:9px; }
     .side-section-label{ padding:12px 14px 6px; }
+    .group-label{ padding:10px 14px 3px; }
     .patient-tab{ padding:9px 14px; }
     .patient-tab .pname{ font-size:12.5px; }
     .side-actions{ padding:10px 14px 0; }
@@ -466,6 +477,7 @@
     .brand-mark{ font-size:14px; }
     .brand-sub{ font-size:8.5px; margin-top:1px; }
     .side-section-label{ padding:9px 10px 4px; font-size:9.5px; }
+    .group-label{ padding:8px 10px 3px; font-size:8.5px; }
     .patient-tab{ padding:7px 10px; }
     .patient-tab .pname{ font-size:11px; }
     .patient-tab .pmeta, .flagcount{ font-size:8.5px; }
@@ -543,6 +555,18 @@
         <select id="np-sex"><option>Female</option><option>Male</option><option>Other</option></select>
       </div>
       <div class="field" style="max-width:100px"><label>Age</label><input type="number" id="np-age" placeholder="29"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="max-width:160px">
+        <label>Group</label>
+        <select id="np-group" onchange="document.getElementById('np-group-custom').style.display = (this.value==='__custom__') ? 'block' : 'none';">
+          <option value="Family">Family</option>
+          <option value="Friends">Friends</option>
+          <option value="Office">Office</option>
+          <option value="__custom__">+ New group…</option>
+        </select>
+      </div>
+      <div class="field" id="np-group-custom" style="display:none;"><label>Group name</label><input type="text" id="np-group-name" placeholder="e.g. In-laws"></div>
     </div>
     <div class="field"><label>Referring doctor (optional)</label><input type="text" id="np-ref" placeholder="Dr. —"></div>
     <div class="modal-actions">
@@ -685,7 +709,7 @@ function initials(name){
 }
 
 /* ======================= Data layer ======================= */
-let STATE = { patients: [], reports: [], selectedPatient: null, activeTrend: null };
+let STATE = { patients: [], reports: [], selectedPatient: null, selectedGroup: null, activeTrend: null };
 
 function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
 
@@ -737,7 +761,7 @@ async function loadDemoData(){
   const color = pickUniqueColor(STATE.patients.map(x=>x.color).filter(Boolean));
   const patient = {
     id: uid('pt'), name:'Soumen Kundu (demo)', sex:'Male', age:29,
-    refBy:'Sample data — delete this patient anytime', color
+    refBy:'Sample data — delete this patient anytime', color, group:'Family'
   };
   STATE.patients.push(patient);
 
@@ -818,41 +842,68 @@ function computeFlag(value, ref){
 }
 
 /* ======================= Rendering ======================= */
+const UNGROUPED = '__ungrouped__'; // sentinel for patients saved before groups existed
+
 function renderSidebar(){
   const list = document.getElementById('patient-list');
   list.innerHTML = '';
-  STATE.patients.forEach(p=>{
-    const reps = reportsFor(p.id);
-    const fc = flaggedCount(p.id);
+
+  const priority = ['Family','Friends','Office'];
+  const groupsPresent = Array.from(new Set(STATE.patients.map(p=>p.group).filter(Boolean)));
+  const customGroups = groupsPresent.filter(g=>!priority.includes(g)).sort((a,b)=>a.localeCompare(b));
+  const orderedGroups = [...priority.filter(g=>groupsPresent.includes(g)), ...customGroups];
+  const hasUngrouped = STATE.patients.some(p=>!p.group);
+  if (hasUngrouped) orderedGroups.push(UNGROUPED);
+
+  const renderGroupRow = (g)=>{
+    const label = g===UNGROUPED ? 'Other' : g;
+    const count = g===UNGROUPED ? STATE.patients.filter(p=>!p.group).length : STATE.patients.filter(p=>p.group===g).length;
     const div = document.createElement('div');
-    div.className = 'patient-tab' + (STATE.selectedPatient===p.id ? ' active':'');
+    div.className = 'patient-tab' + (STATE.selectedGroup===g && !STATE.selectedPatient ? ' active':'');
     div.innerHTML = `
       <div class="tab-row">
-        <div class="avatar" style="background:${p.color || avatarColor(p.name)}">${initials(p.name)}</div>
         <div>
-          <div class="pname">${escapeHtml(p.name)}</div>
-          <div class="pmeta">${reps.length} report${reps.length===1?'':'s'}</div>
+          <div class="pname">${escapeHtml(label)}</div>
+          <div class="pmeta">${count} patient${count===1?'':'s'}</div>
         </div>
       </div>
-      <div class="flagcount">${fc>0? fc : ''}</div>
     `;
-    div.onclick = ()=>{ STATE.selectedPatient = p.id; STATE.activeTrend=null; renderAll(); };
+    div.onclick = ()=>{ STATE.selectedGroup = g; STATE.selectedPatient = null; STATE.activeTrend=null; renderAll(); };
     list.appendChild(div);
-  });
+  };
+
+  const allDiv = document.createElement('div');
+  allDiv.className = 'patient-tab' + (STATE.selectedGroup===null && !STATE.selectedPatient ? ' active':'');
+  allDiv.innerHTML = `
+    <div class="tab-row">
+      <div>
+        <div class="pname">All patients</div>
+        <div class="pmeta">${STATE.patients.length} total</div>
+      </div>
+    </div>
+  `;
+  allDiv.onclick = ()=>{ STATE.selectedGroup = null; STATE.selectedPatient = null; STATE.activeTrend=null; renderAll(); };
+  list.appendChild(allDiv);
+
+  orderedGroups.forEach(renderGroupRow);
 }
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function escapeJs(s){
+  // Safe to drop into a single-quoted string inside an inline onclick="" attribute.
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
 
 function renderMain(){
   const root = document.getElementById('view-root');
   if (!STATE.selectedPatient){
-    renderDashboard(root);
+    renderDashboard(root, STATE.selectedGroup);
     return;
   }
   const p = STATE.patients.find(x=>x.id===STATE.selectedPatient);
-  if (!p){ STATE.selectedPatient=null; renderDashboard(root); return; }
+  if (!p){ STATE.selectedPatient=null; renderDashboard(root, STATE.selectedGroup); return; }
   const reps = reportsFor(p.id);
 
   let html = `
@@ -869,7 +920,7 @@ function renderMain(){
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn subtle small" onclick="STATE.selectedPatient=null; renderAll();">← All patients</button>
+        <button class="btn subtle small" onclick="STATE.selectedPatient=null; renderAll();">← ${STATE.selectedGroup ? escapeHtml(STATE.selectedGroup) : 'All patients'}</button>
         <button class="btn small" onclick="openReportModal('${p.id}')">+ Add report</button>
         <button class="btn danger small" onclick="deletePatient('${p.id}')">Delete patient</button>
       </div>
@@ -920,7 +971,14 @@ function renderMain(){
   });
 }
 
-function renderDashboard(root){
+function renderDashboard(root, group){
+  // group: null/undefined = "All patients" (everything); a string = only that
+  // group; UNGROUPED = patients saved before groups existed.
+  const inGroup = (p)=> (group===undefined || group===null) ? true : (group===UNGROUPED ? !p.group : p.group===group);
+  const groupPatients = STATE.patients.filter(inGroup);
+  const heading = group===UNGROUPED ? 'Other' : (group ? escapeHtml(group) : 'Overview');
+  const addGroupArg = (group && group!==UNGROUPED) ? `'${escapeJs(group)}'` : 'null';
+
   if (!STATE.patients.length){
     root.innerHTML = `
       <div class="topbar">
@@ -942,11 +1000,33 @@ function renderDashboard(root){
     `;
     return;
   }
+
+  if (!groupPatients.length){
+    root.innerHTML = `
+      <div class="topbar">
+        <div>
+          <div class="patient-title">${heading}</div>
+          <div class="patient-sub"><span>0 patients</span></div>
+        </div>
+      </div>
+      <div class="empty-state">
+        <div class="empty-title">No one here yet</div>
+        <div class="empty-desc">
+          Add a patient to the "${heading}" group to start tracking their reports.
+        </div>
+        <div class="empty-actions">
+          <button class="btn" onclick="openPatientModal(${addGroupArg})">+ Add a patient</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   let html = `
     <div class="topbar">
       <div>
-        <div class="patient-title">Overview</div>
-        <div class="patient-sub"><span>${STATE.patients.length} patient${STATE.patients.length===1?'':'s'} tracked</span></div>
+        <div class="patient-title">${heading}</div>
+        <div class="patient-sub"><span>${groupPatients.length} patient${groupPatients.length===1?'':'s'}${group ? '' : ' tracked'}</span></div>
       </div>
       <div class="topbar-actions">
         <button class="btn small" onclick="openReportModal()">+ Add report</button>
@@ -954,7 +1034,7 @@ function renderDashboard(root){
     </div>
     <div class="dash-grid">
   `;
-  STATE.patients.forEach(p=>{
+  groupPatients.forEach(p=>{
     const reps = reportsFor(p.id);
     const fc = flaggedCount(p.id);
     const last = reps.length ? reps[reps.length-1] : null;
@@ -975,7 +1055,7 @@ function renderDashboard(root){
       </div>
     `;
   });
-  html += `<div class="dash-card add-card" onclick="openPatientModal()">+ Add a patient</div>`;
+  html += `<div class="dash-card add-card" onclick="openPatientModal(${addGroupArg})">+ Add a patient</div>`;
   html += `</div>`;
   root.innerHTML = html;
 }
@@ -1059,18 +1139,40 @@ function tryTrend(patientId, cat, name){
 function closeTrend(){ document.getElementById('trend-panel').classList.remove('show'); }
 
 /* ======================= Add Patient modal ======================= */
-function openPatientModal(){
+function openPatientModal(presetGroup){
   document.getElementById('np-name').value='';
   document.getElementById('np-sex').value='Male';
   document.getElementById('np-age').value='';
   document.getElementById('np-ref').value='';
+
+  // Rebuild the group dropdown: the three defaults, plus any custom
+  // group names already used by existing patients, then "+ New group…".
+  const defaults = ['Family','Friends','Office'];
+  const used = Array.from(new Set(STATE.patients.map(p=>p.group).filter(g=>g && !defaults.includes(g))));
+  const groupSel = document.getElementById('np-group');
+  const allKnown = [...defaults, ...used];
+  // If we're pre-filling a group that currently has no patients (e.g. the
+  // last member of a group was just deleted), make sure it's still an option.
+  if (presetGroup && !allKnown.includes(presetGroup)) allKnown.push(presetGroup);
+  groupSel.innerHTML =
+    allKnown.map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('') +
+    `<option value="__custom__">+ New group…</option>`;
+  groupSel.value = presetGroup || 'Family';
+  document.getElementById('np-group-name').value='';
+  document.getElementById('np-group-custom').style.display='none';
+
   openModal('modal-patient');
 }
-document.getElementById('btn-add-patient').onclick = openPatientModal;
+document.getElementById('btn-add-patient').onclick = ()=>openPatientModal(STATE.selectedGroup && STATE.selectedGroup!==UNGROUPED ? STATE.selectedGroup : undefined);
 
 document.getElementById('btn-save-patient').onclick = async ()=>{
   const name = document.getElementById('np-name').value.trim();
   if (!name){ alert('Please enter a name.'); return; }
+  const groupSelVal = document.getElementById('np-group').value;
+  let group = groupSelVal;
+  if (groupSelVal === '__custom__'){
+    group = document.getElementById('np-group-name').value.trim() || 'Family';
+  }
   const p = {
     id: uid('pt'),
     name,
@@ -1078,6 +1180,7 @@ document.getElementById('btn-save-patient').onclick = async ()=>{
     age: parseInt(document.getElementById('np-age').value)||null,
     refBy: document.getElementById('np-ref').value.trim(),
     color: pickUniqueColor(STATE.patients.map(x=>x.color).filter(Boolean)),
+    group,
   };
   STATE.patients.push(p);
   await persist();
